@@ -1,86 +1,56 @@
 package com.vicky.userManagment.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import lombok.Data;
-
+import lombok.Getter;
+import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Data
-@Table(
-        name = "users",
-        uniqueConstraints = @UniqueConstraint(columnNames = "email")
-)
+@Getter
+@Setter
+@Table(name = "users", uniqueConstraints = @UniqueConstraint(name = "uk_users_email", columnNames = "email"))
 public class Users {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(length = 80)
     private String firstName;
+    @Column(length = 80)
     private String lastName;
-
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 254)
     private String email;
-
+    @Column(length = 30)
     private String phoneNumber;
+    @Column(length = 100)
     private String department;
-    private String role;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Role role = Role.USER;
+
+    // Nullable only to accommodate accounts created before authentication existed.
+    // Such accounts cannot log in until explicitly provisioned with a password.
+    @JsonIgnore
+    @Column(length = 100)
+    private String passwordHash;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private boolean active = true;
 
-    private boolean active;
+    @Version
+    private Long version;
 
     @PrePersist
     public void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-        this.active = true;
+        createdAt = LocalDateTime.now();
+        updatedAt = createdAt;
     }
 
     @PreUpdate
     public void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void setFirstName(String firstName) {
-        this.firstName = firstName;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public void setLastName(String lastName) {
-        this.lastName = lastName;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public void setPhoneNumber(String phoneNumber) {
-        this.phoneNumber = phoneNumber;
-    }
-
-    public void setDepartment(String department) {
-        this.department = department;
-    }
-
-    public void setRole(String role) {
-        this.role = role;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public void setActive(boolean active) {
-        this.active = active;
+        updatedAt = LocalDateTime.now();
     }
 }

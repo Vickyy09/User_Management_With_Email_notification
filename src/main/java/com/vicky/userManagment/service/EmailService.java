@@ -1,68 +1,60 @@
 package com.vicky.userManagment.service;
-import com.vicky.userManagment.entity.Users;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+
+import com.vicky.userManagment.entity.*;
+import com.vicky.userManagment.repo.EmailNotificationRepo;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.*;
+import java.time.Clock;
+import java.util.LinkedHashSet;
 
 @Service
+@Transactional(propagation = Propagation.MANDATORY)
 public class EmailService {
+    private final EmailNotificationRepo notifications;
+    private final Clock clock;
+    private final String hrEmail;
 
-    @Autowired
-    private JavaMailSender mailSender;
-
-    private static final String HR_EMAIL = "hr@techcorp.com";
-
-    public void sendUserCreatedEmail(Users user) {
-        sendEmail(
-                new String[]{HR_EMAIL, user.getEmail()},
-                "Welcome to TechCorp - Account Created",
-                buildCreateMessage(user)
-        );
+    public EmailService(EmailNotificationRepo notifications, Clock clock,
+                        @Value("${app.mail.hr-email:}") String hrEmail) {
+        this.notifications = notifications;
+        this.clock = clock;
+        this.hrEmail = hrEmail;
     }
 
-    public void sendUserUpdatedEmail(Users user) {
-        sendEmail(
-                new String[]{HR_EMAIL, user.getEmail()},
-                "Account Updated - User Details Changed",
-                buildUpdateMessage(user)
-        );
+    public void queueUserCreatedEmail(Users user) {
+        queue(user, "Account created",
+                "Your account has been created.\nDepartment: " +
+                        (user.getDepartment() == null ? "" : user.getDepartment()) +
+                        "\nRole: " + user.getRole(), true);
     }
 
-    public void sendUserDeletedEmail(Users user) {
-        sendEmail(
-                new String[]{HR_EMAIL, user.getEmail()},
-                "Account Deactivated - " + user.getFirstName(),
-                buildDeleteMessage(user)
-        );
+    public void queueUserUpdatedEmail(Users user) {
+        queue(user, "Profile updated", "Your profile details have been updated.", true);
     }
 
-    private void sendEmail(String[] to, String subject, String body) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject(subject);
-        message.setText(body);
-        mailSender.send(message);
+    public void queueUserDeactivatedEmail(Users user) {
+        queue(user, "Account deactivated", "Your account has been deactivated. Contact your administrator for assistance.", true);
     }
 
-    private String buildCreateMessage(Users user) {
-        return "Hello " + user.getFirstName() + ",\n\n" +
-                "Your account has been successfully created.\n\n" +
-                "Department: " + user.getDepartment() + "\n" +
-                "Role: " + user.getRole() + "\n\n" +
-                "Regards,\nTechCorp HR";
+    public void queuePasswordChangedEmail(Users user) {
+        queue(user, "Password changed",
+                "Your password has been changed. If you did not make this change, contact your administrator immediately.", false);
     }
 
-    private String buildUpdateMessage(Users user) {
-        return "Hello " + user.getFirstName() + ",\n\n" +
-                "Your account details were updated on " + user.getUpdatedAt() + ".\n\n" +
-                "Regards,\nTechCorp HR";
-    }
-
-    private String buildDeleteMessage(Users user) {
-        return "Hello " + user.getFirstName() + ",\n\n" +
-                "Your account has been deactivated.\n" +
-                "For any questions, contact HR.\n\n" +
-                "Regards,\nTechCorp HR";
+    private void queue(Users user, String subject, String text, boolean notifyHr) {
+        var recipients = new LinkedHashSet<String>();
+        recipients.add(user.getEmail());
+        if (notifyHr && !hrEmail.isBlank()) recipients.add(hrEmail.trim().toLowerCase(java.util.Locale.ROOT));
+        // Separate messages prevent partial recipient failure from retrying every recipient.
+        for (String recipient : recipients) {
+            var notification = new EmailNotification();
+            notification.setRecipient(recipient);
+            notification.setSubject(subject);
+            notification.setBody("Hello " + user.getFirstName() + ",\n\n" + text + "\n\nUser Management");
+            notification.setCreatedAt(clock.instant());
+            notification.setNextAttemptAt(clock.instant());
+            notifications.save(notification);
+        }
     }
 }

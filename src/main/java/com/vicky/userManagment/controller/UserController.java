@@ -1,43 +1,69 @@
 package com.vicky.userManagment.controller;
 
-import com.vicky.userManagment.entity.Users;
+import com.vicky.userManagment.dto.*;
+import com.vicky.userManagment.security.UserPrincipal;
 import com.vicky.userManagment.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.http.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import java.net.URI;
 
 @RestController
-@RequestMapping("/user")
+@RequestMapping("/api/users")
 public class UserController {
+    private final UserService service;
 
-    @Autowired
-    private UserService service;
+    public UserController(UserService service) { this.service = service; }
 
-    @PostMapping("/createUser")
-    public String createUser(@RequestBody Users user) {
-        service.createUser(user);
-        return "User saved successfully";
+    @PostMapping
+    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request,
+            @AuthenticationPrincipal UserPrincipal actor) {
+        var user = service.createUser(request, actor);
+        return ResponseEntity.created(URI.create("/api/users/" + user.id())).body(user);
     }
 
-    @GetMapping("/getAll")
-    public List<Users> getAllUsers() {
-        return service.getAllUsers();
+    @GetMapping
+    public PageResponse<UserResponse> getAllUsers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "id") String sort,
+            @RequestParam(defaultValue = "asc") String direction) {
+        return service.getAllUsers(page, size, sort, direction);
     }
 
-    @GetMapping("/get/{id}")
-    public Users getUserById(@PathVariable Long id) {
-        return service.getUserById(id);
+    @GetMapping("/{id}")
+    public UserResponse getUserById(@PathVariable @Positive Long id,
+            @AuthenticationPrincipal UserPrincipal actor) {
+        return service.getUserById(id, actor);
     }
 
-    @PutMapping("/update/{id}")
-    public Users updateUser(@PathVariable Long id, @RequestBody Users user) {
-        return service.updateUser(id, user);
+    @PutMapping("/{id}")
+    public UserResponse updateUser(@PathVariable @Positive Long id, @Valid @RequestBody UpdateUserRequest request,
+            @AuthenticationPrincipal UserPrincipal actor) {
+        return service.updateUser(id, request, actor);
     }
 
-    @DeleteMapping("/delete/{id}")
-    public String deleteUser(@PathVariable Long id) {
-        service.deleteUser(id);
-        return "User deleted ";
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deactivateUser(@PathVariable @Positive Long id) { service.deactivateUser(id); }
+
+    @GetMapping("/me")
+    public UserResponse me(@AuthenticationPrincipal UserPrincipal actor) {
+        return service.getUserById(actor.id(), actor);
+    }
+
+    @PutMapping("/me")
+    public UserResponse updateMe(@Valid @RequestBody UpdateUserRequest request,
+            @AuthenticationPrincipal UserPrincipal actor) {
+        return service.updateUser(actor.id(), request, actor);
+    }
+
+    @PutMapping("/me/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@Valid @RequestBody ChangePasswordRequest request,
+            @AuthenticationPrincipal UserPrincipal actor) {
+        service.changePassword(request, actor);
     }
 }

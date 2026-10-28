@@ -1,19 +1,14 @@
 package com.vicky.userManagment.service;
 
-import com.vicky.userManagment.entity.Users;
-
-import java.util.List;
+import com.vicky.userManagment.dto.*;
+import com.vicky.userManagment.security.UserPrincipal;
 
 public interface UserService {
-
-    Users createUser(Users user);
-
-    List<Users> getAllUsers();
-
-    Users getUserById(Long id);
-
-    Users updateUser(Long id, Users user);
-
-    void deleteUser(Long id);
+    UserResponse register(CreateUserRequest request);
+    UserResponse createUser(CreateUserRequest request, UserPrincipal actor);
+    PageResponse<UserResponse> getAllUsers(int page, int size, String sort, String direction);
+    UserResponse getUserById(Long id, UserPrincipal actor);
+    UserResponse updateUser(Long id, UpdateUserRequest request, UserPrincipal actor);
+    void deactivateUser(Long id);
+    void changePassword(ChangePasswordRequest request, UserPrincipal actor);
 }
-
